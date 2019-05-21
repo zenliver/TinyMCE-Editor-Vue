@@ -2,11 +2,23 @@
 
 通用tinymce编辑器组件 by ZHJ
 
-依赖: tinymce, @tinymce/tinymce-vue, axios，开箱即用
+支持v-model绑定编辑器内容，开箱即用
 
-支持v-model绑定编辑器内容
+## 依赖的npm包
 
-## props:
+```bash
+npm install tinymce@4.9.4 --save
+npm install @tinymce/tinymce-vue@1.1.2 --save
+npm install axios@0.16.2 --save
+```
+
+`axios` 的版本跟上面的版本有出入问题不大，但 `tinymce` 和 `@tinymce/tinymce-vue` 这两个依赖的版本必须跟上面的一致。
+
+## 使用方法
+
+将tinymce基础依赖库（本项目中 `tinymce` 文件夹）复制到开发项目的 `static` 或其他存放静态资源的目录下，通过 `props` 传入打包后的静态资源目录的路径即可。
+
+## props
 
 `fileUploadUrl` : 文件上传地址
 
