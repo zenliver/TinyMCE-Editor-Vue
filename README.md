@@ -22,8 +22,14 @@ npm install axios@0.16.2 --save
 
 ## props
 
-`fileUploadUrl` : 文件上传地址
+`fileUploadUrl` : 文件上传地址（type: String）
 
-`staticFolderPath` : 打包后系统静态资源目录的路径
+`staticFolderPath` : 打包后系统静态资源目录的路径（type: String）
 
-`height` : 编辑器内容区域的高度
+`height` : 编辑器内容区域的高度（type: Number）
+
+`fileUploadSuccessCondition` ：文件上传接口上传成功的判断条件（type：Function）
+
+`fileUploadSuccessFileUrl` ：文件上传接口上传成功后返回的文件地址（type: Function）
+
+`fileSizeLimit` : 最大允许上传的文件大小（type: Number, 单位：字节）

@@ -1,11 +1,14 @@
-<!-- 通用tinymce编辑器组件 by ZHJ ver:201905210956 -->
-<!-- 依赖: tinymce, @tinymce/tinymce-vue, axios，开箱即用 -->
+<!-- 通用tinymce编辑器组件 by ZHJ ver:201905271730 -->
+<!-- 依赖: tinymce, @tinymce/tinymce-vue, axios，具备scss编译环境，开箱即用 -->
 <!-- 支持v-model绑定编辑器内容 -->
 <!--
 props:
-fileUploadUrl: 文件上传地址
-staticFolderPath: 打包后系统静态资源目录的路径
-height: 编辑器内容区域的高度
+fileUploadUrl: 文件上传地址（type: String）
+staticFolderPath: 打包后系统静态资源目录的路径（type: String）
+height: 编辑器内容区域的高度（type: Number）
+fileUploadSuccessCondition：文件上传接口上传成功的判断条件（type：Function）
+fileUploadSuccessFileUrl：文件上传接口上传成功后返回的文件地址（type: Function）
+fileSizeLimit: 最大允许上传的文件大小（单位：字节B）
 -->
 
 <template lang="html">
@@ -76,9 +79,10 @@ height: 编辑器内容区域的高度
 
       </div>
 
-      <input id="multiple_images_upload_file_input" type="file" name="" value="" accept="image/*" multiple style="display: none;" v-if="renderFileInput">
-
     </div>
+
+    <!-- 输出编辑器版本号 -->
+    <div class="tinymce_editor_version" style="display: none;"></div>
 
   </div>
 </template>
@@ -114,7 +118,8 @@ height: 编辑器内容区域的高度
     },
     props: {
       fileUploadUrl: {
-        type: String
+        type: String,
+        required: true
       },
       value: {
         type: String
@@ -127,6 +132,17 @@ height: 编辑器内容区域的高度
         type: Number,
         default: 400
       },
+      fileUploadSuccessCondition: {
+        type: Function,
+        required: true
+      },
+      fileUploadSuccessFileUrl: {
+        type: Function,
+        required: true
+      },
+      fileSizeLimit: {
+        type: Number
+      }
     },
     data () {
       return {
@@ -141,7 +157,8 @@ height: 编辑器内容区域的高度
           branding: false,
           menubar: false,
           plugins: 'textcolor colorpicker link lists table image media code emoticons preview wordcount fullscreen help',
-          toolbar: 'undo redo |  formatselect fontselect fontsizeselect | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify outdent indent | bullist numlist table | emoticons link image media multiImages | preview code removeformat clearContent fullscreen',
+          // 暂时隐藏的图标：bullist numlist
+          toolbar: 'undo redo |  formatselect fontselect fontsizeselect | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify outdent indent | table | emoticons link image media multiImages | preview code removeformat clearContent fullscreen',
           external_plugins: {
             'textcolor': this.staticFolderPath+'tinymce/plugins/textcolor/plugin.min.js',
             'colorpicker': this.staticFolderPath+'tinymce/plugins/colorpicker/plugin.min.js',
@@ -165,8 +182,10 @@ height: 编辑器内容区域的高度
           setup:  (editor) => {
 
             // 输出版本号：
-            // console.log(tinymce);
             console.log('tinymce初始化完成，版本：'+tinymce.majorVersion+'.'+tinymce.minorVersion);
+
+            let tinymceEditorVersion = document.querySelector('.tinymce_editor_version');
+            tinymceEditorVersion.innerHTML = 'tinymce版本：'+tinymce.majorVersion+'.'+tinymce.minorVersion;
 
             editor.addButton('multiImages',{
               text: '多图上传',
@@ -208,7 +227,8 @@ height: 编辑器内容区域的高度
             }
 
             if (meta.filetype === 'media') {
-              fileInput.accept = 'video/*,audio/*';
+              // fileInput.accept = 'video/*,audio/*';
+              fileInput.accept = '.mp3,.mp4';
             }
 
             // fileInput.multiple = true;
@@ -222,6 +242,7 @@ height: 编辑器内容区域的高度
               // type='file'的input都有files属性，存储用户所选的文件信息
               console.log(fileInput.files);
 
+              // 图片上传拦截器
               if (meta.filetype === 'image') {
                 if (fileInput.files[0].type.indexOf('image') !== 0) {
                   alert('请选择图片文件');
@@ -229,13 +250,42 @@ height: 编辑器内容区域的高度
                 }
               }
 
+              // 媒体上传拦截器
               if (meta.filetype === 'media') {
-                if (!fileInput.files[0].type.match(/^(video|audio).*$/)) {
-                  alert('请选择视频或音频文件');
+
+                if (!fileInput.files[0].type.match(/^(video|audio).*$/)) { // 既不是视频也不是音频
+
+                  // alert('请选择视频或音频文件');
+                  alert('请选择MP3或MP4格式的音视频文件');
                   return ;
+
+                } else if (fileInput.files[0].type.indexOf('video') === 0) { // 视频
+
+                  if (fileInput.files[0].type !== 'video/mp4') {
+                    alert('上传视频请选择MP4格式');
+                    return ;
+                  }
+
+                } else { // 音频
+
+                  if (fileInput.files[0].type !== 'audio/mp3') {
+                    alert('上传音频请选择MP3格式');
+                    return ;
+                  }
+
                 }
+
               }
 
+              // 文件大小拦截器
+              if (this.fileSizeLimit && fileInput.files[0].size > this.fileSizeLimit) {
+                let fileSizeLimitMNum = this.fileSizeLimit/1024/1024;
+
+                alert(`抱歉，文件大小不能超过${fileSizeLimitMNum}M`);
+                return ;
+              }
+
+              // 正式进入上传流程
               let formData = new FormData();
               formData.append('file',fileInput.files[0]);
 
@@ -266,9 +316,8 @@ height: 编辑器内容区域的高度
                   uploadProgressTxt.innerHTML = '正在上传：'+uploadPercent;
 
                 }
-              }).then( (response) => {
+              }).then( (response) => { // 接口返回正常
 
-                // 上传结束后
                 // 删除 loadingTips
                 loadingTips.remove();
                 // 删除 fileInput
@@ -276,13 +325,32 @@ height: 编辑器内容区域的高度
 
                 console.log(response);
 
-                let fileUrl = response.data.fileUrl;
+                if (response.status === 200) {
 
-                // 将文件地址填入对话框中
-                callback(fileUrl);
+                  if (this.fileUploadSuccessCondition(response)) { // 上传成功
 
-              }).catch( (error) => {
+                    let fileUrl = this.fileUploadSuccessFileUrl(response);
+
+                    // 将文件地址填入对话框中
+                    callback(fileUrl);
+
+                  } else { // 上传失败
+
+                    alert('文件上传失败，请重新上传');
+
+                  }
+
+                }
+
+              }).catch( (error) => { // 接口返回异常
                 console.log(error);
+
+                // 删除 loadingTips
+                loadingTips.remove();
+                // 删除 fileInput
+                fileInput.remove();
+
+                alert('文件上传失败，请重新上传');
 
               });
 
@@ -319,7 +387,6 @@ height: 编辑器内容区域的高度
         showMultiImagesUploadDialog: false,
         multiUploadImgs: [],
         multiUploadImgBlobs: [],
-        renderFileInput: false,
         notImgFilteredNum: 0,
       };
     },
@@ -415,49 +482,56 @@ height: 编辑器内容区域的高度
     },
     methods: {
       selectImgs() {
-        this.renderFileInput = true;
 
-        this.$nextTick(function () {
-          let fileInput = document.querySelector('#multiple_images_upload_file_input');
-          fileInput.click();
+        // 动态创建 fileInput
+        let fileInput = document.createElement('input');
+        document.body.appendChild(fileInput);
+        fileInput.className = 'multiple_images_upload_file_input';
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.multiple = true;
+        fileInput.style.display = 'none';
 
-          fileInput.onchange =  () => {
-            console.log(fileInput.files);
+        // 模拟点击
+        fileInput.click();
 
-            let fileList = fileInput.files;
-            let notImgNum = 0;
-            for (let i = 0; i < fileList.length; i++) {
+        fileInput.onchange =  () => {
+          console.log(fileInput.files);
 
-              if (fileList[i].type.indexOf('image') === 0) { // 是图片
+          let fileList = fileInput.files;
+          let notImgNum = 0;
+          for (let i = 0; i < fileList.length; i++) {
 
-                let imgPreviewUrl = window.URL.createObjectURL(fileList[i]);
-                this.multiUploadImgs.push(
-                  {
-                    imgPreviewUrl: imgPreviewUrl,
-                    imgUploadedUrl: '',
-                    imgSize: fileList[i].size,
-                    isUploading: false,
-                    isUploaded: false,
-                    isUploadError: false
-                  }
-                );
+            if (fileList[i].type.indexOf('image') === 0) { // 是图片
 
-                this.multiUploadImgBlobs.push(fileList[i]);
+              let imgPreviewUrl = window.URL.createObjectURL(fileList[i]);
+              this.multiUploadImgs.push(
+                {
+                  imgPreviewUrl: imgPreviewUrl,
+                  imgUploadedUrl: '',
+                  imgSize: fileList[i].size,
+                  isUploading: false,
+                  isUploaded: false,
+                  isUploadError: false
+                }
+              );
 
-              } else { // 不是图片
+              this.multiUploadImgBlobs.push(fileList[i]);
 
-                notImgNum ++;
+            } else { // 不是图片
 
-              }
+              notImgNum ++;
 
             }
 
-            this.notImgFilteredNum = notImgNum;
-            this.renderFileInput = false;
+          }
 
-          };
+          this.notImgFilteredNum = notImgNum;
 
-        });
+          // 从DOM中删除 fileInput
+          fileInput.remove();
+
+        };
 
       },
       uploadImgs() {
@@ -488,17 +562,17 @@ height: 编辑器内容区域的高度
                 progressBarPercent.style.width = uploadPercent;
 
               }
-            }).then( (response) => {
+            }).then( (response) => { // 接口返回正常
               console.log(response);
 
               this.multiUploadImgs[index].isUploading = false;
 
               if (response.status === 200) {
 
-                if (response.data.retCode === '0') { // 上传成功
+                if (this.fileUploadSuccessCondition(response)) { // 上传成功
 
                   this.multiUploadImgs[index].isUploaded = true;
-                  this.multiUploadImgs[index].imgUploadedUrl = response.data.fileUrl;
+                  this.multiUploadImgs[index].imgUploadedUrl = this.fileUploadSuccessFileUrl(response);
                   this.multiUploadImgs[index].isUploadError = false;
 
                 } else { // 上传失败
@@ -508,8 +582,11 @@ height: 编辑器内容区域的高度
                 }
               }
 
-            }).catch( (error) => {
+            }).catch( (error) => { // 接口返回异常
               console.log(error);
+
+              this.multiUploadImgs[index].isUploading = false;
+              this.multiUploadImgs[index].isUploadError = true;
 
             });
 
@@ -614,6 +691,11 @@ height: 编辑器内容区域的高度
   //   display: none !important;
   // }
 
+  // 防止全屏模式显示异常
+  .mce-fullscreen {
+    z-index: 10000 !important;
+  }
+
   // 修改编辑器对话框的背景色
   #mce-modal-block.mce-in {
     background-color: #000;
@@ -630,6 +712,15 @@ height: 编辑器内容区域的高度
           content: "上传";
           margin-left: 5px;
         }
+      }
+    }
+  }
+
+  // 隐藏媒体上传对话框后两个tab
+  .mce-container.mce-panel.mce-floatpanel.mce-window.mce-in[aria-label="Insert/edit media"] {
+    .mce-tab {
+      &:nth-child(2), &:nth-child(3) {
+        display: none;
       }
     }
   }
@@ -727,7 +818,7 @@ height: 编辑器内容区域的高度
       right: 0;
       bottom: 0;
       background-color: rgba(0,0,0,0.5);
-      z-index: 10001;
+      z-index: 99998;
       line-height: 40px;
       box-sizing: border-box;
       * {
@@ -767,7 +858,7 @@ height: 编辑器内容区域的高度
       height: 450px;
       background-color: #fff;
       box-shadow: 0 3px 7px rgba(0,0,0,0.3);
-      z-index: 10002;
+      z-index: 99999;
     }
     .multiple_images_upload_dialog_btn {
       display: inline-block;
